@@ -2,8 +2,17 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+
+
 public class Domineering : MonoBehaviour
 {
+    public enum Mode
+    {
+        MinMax,
+        MinMaxAlphaBeta,
+        Negamax
+    };
+    
     [SerializeField]
     int _width = 5;
 
@@ -14,8 +23,8 @@ public class Domineering : MonoBehaviour
     Material[] _materials;
 
     [SerializeField]
-    bool _minimax = true;
-
+    Mode _mode = Mode.MinMax;
+    
     [SerializeField]
     int _recursivity = 5;
 
@@ -25,6 +34,9 @@ public class Domineering : MonoBehaviour
 
     private int _posCursorX = 0;
     private int _posCursorY = 0;
+
+    private int[] _killMoveX;
+    private int[] _killMoveY;
 
     // Use this for initialization
     void Start ()
@@ -52,6 +64,14 @@ public class Domineering : MonoBehaviour
             posY--;
         }
 
+        _killMoveX = new int[_recursivity];
+        for (int i = 0; i < _recursivity; i++)
+            _killMoveX[i] = -5000;
+
+        _killMoveY = new int[_recursivity];
+        for (int i = 0; i < _recursivity; i++)
+            _killMoveY[i] = -5000;
+
         ChangeToPlayer();
     }
 
@@ -63,10 +83,9 @@ public class Domineering : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.UpArrow))
             {
                 ResetHighlight();
-                _posCursorX = 0;
 
                 int lineY = _posCursorY - 1;
-                int colX = 0;
+                int colX = -1;
                 while (lineY > -1)
                 {
                     colX = GetPosXFree(lineY);
@@ -84,10 +103,9 @@ public class Domineering : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.DownArrow))
             {
                 ResetHighlight();
-                _posCursorX = 0;
 
                 int lineY = _posCursorY + 1;
-                int colX = 0;
+                int colX = -1;
                 while (lineY < _heigth)
                 {
                     colX = GetPosXFree(lineY);
@@ -136,13 +154,11 @@ public class Domineering : MonoBehaviour
         _posCursorY = -1;
         ResetHighlight();
 
-        int lineY = 0;
-        while (lineY < _heigth)
+        for (int lineY = 0; lineY < _heigth; lineY++)
         {
-            int colX = 0;
-            while (colX < _width - 1)
+            for (int colX = 0; colX < _width - 1; colX++)
             {
-                if(_quadrillageState[lineY][colX] == false && _quadrillageState[lineY][colX + 1] == false)
+                if (_quadrillageState[lineY][colX] == false && _quadrillageState[lineY][colX + 1] == false)
                 {
                     _posCursorX = colX;
                     _posCursorY = lineY;
@@ -150,14 +166,10 @@ public class Domineering : MonoBehaviour
 
                 if (_posCursorX >= 0 && _posCursorY >= 0)
                     break;
-
-                colX++;
             }
 
             if (_posCursorX >= 0 && _posCursorY >= 0)
                 break;
-
-            lineY++;
         }
 
         if (_posCursorX >= 0 && _posCursorY >= 0)
@@ -167,6 +179,7 @@ public class Domineering : MonoBehaviour
         }
         else
         {
+            Debug.Log(NbSolucePlayer());
             Debug.Log("Player Game Over");
         }
     }
@@ -177,40 +190,42 @@ public class Domineering : MonoBehaviour
         _posCursorX = -1;
         _posCursorY = -1;
 
-        if(!_minimax)
+        switch(_mode)
         {
-            int heuristic = -100;
+            case Mode.MinMax:
+                int heuristic = -5000;
 
-            int lineY = 0;
-            while (lineY < _heigth - 1)
-            {
-                int colX = 0;
-                while (colX < _width)
+                for (int lineY = 0; lineY < _heigth - 1; lineY++)
                 {
-                    if (_quadrillageState[lineY][colX] == false && _quadrillageState[lineY + 1][colX] == false)
+                    for (int colX = 0; colX < _width; colX++)
                     {
-                        _quadrillageState[lineY][colX] = true;
-                        _quadrillageState[lineY + 1][colX] = true;
-
-                        int tempHeur = NbSoluceIA() - NbSolucePlayer();
-                        if (tempHeur > heuristic)
+                        if (_quadrillageState[lineY][colX] == false && _quadrillageState[lineY + 1][colX] == false)
                         {
-                            heuristic = tempHeur;
-                            _posCursorX = colX;
-                            _posCursorY = lineY;
-                        }
+                            _quadrillageState[lineY][colX] = true;
+                            _quadrillageState[lineY + 1][colX] = true;
 
-                        _quadrillageState[lineY][colX] = false;
-                        _quadrillageState[lineY + 1][colX] = false;
+                            int tempHeur = NbSoluceIA() - NbSolucePlayer();
+                            if (tempHeur > heuristic)
+                            {
+                                heuristic = tempHeur;
+                                _posCursorX = colX;
+                                _posCursorY = lineY;
+                            }
+
+                            _quadrillageState[lineY][colX] = false;
+                            _quadrillageState[lineY + 1][colX] = false;
+                        }
                     }
-                    colX++;
                 }
-                lineY++;
-            }
-        }
-        else
-        {
-            MiniMax(_recursivity, 0);
+                break;
+            case Mode.MinMaxAlphaBeta:
+                Max(_recursivity, -5000, 5000);
+                break;
+            case Mode.Negamax:
+                Debug.Log("Negamax");
+                NegaMax(_recursivity, -5000, 5000);
+                break;
+
         }
 
         if (_posCursorX >= 0 && _posCursorY >= 0)
@@ -220,6 +235,9 @@ public class Domineering : MonoBehaviour
         }
         else
         {
+            Debug.Log(NbSoluceIA());
+            Debug.Log(_posCursorX);
+            Debug.Log(_posCursorY);
             Debug.Log("IA Game Over");
         }
     }
@@ -264,9 +282,8 @@ public class Domineering : MonoBehaviour
     int GetPosXFree(int lineY)
     {
         int posX = -1;
-
-        int colX = 0;
-        while (colX < _width - 1)
+        
+        for(int colX = 0; colX < _width - 1; colX++)
         {
             if (_quadrillageState[lineY][colX] == false && _quadrillageState[lineY][colX + 1] == false)
             {
@@ -275,8 +292,6 @@ public class Domineering : MonoBehaviour
 
             if (posX >= 0)
                 break;
-
-            colX++;
         }
 
         return posX;
@@ -287,7 +302,7 @@ public class Domineering : MonoBehaviour
         int posX = -1;
 
         colX += offset;
-        while ((offset == 1 && colX < _width - 1) || (offset == -1 && colX > - 1))
+        while ((offset == 1 && colX < _width - 1) || (offset == -1 && colX > -1))
         {
             if (_quadrillageState[lineY][colX] == false && _quadrillageState[lineY][colX + 1] == false)
             {
@@ -308,19 +323,15 @@ public class Domineering : MonoBehaviour
     {
         int nbSoluce = 0;
 
-        int lineY = 0;
-        while (lineY < _heigth)
+        for (int lineY = 0; lineY < _heigth; lineY++)
         {
-            int colX = 0;
-            while (colX < _width - 1)
+            for (int colX = 0; colX < _width - 1; colX++)
             {
                 if (_quadrillageState[lineY][colX] == false && _quadrillageState[lineY][colX + 1] == false)
                 {
                     nbSoluce++;
                 }
-                colX++;
             }
-            lineY++;
         }
         return nbSoluce;
     }
@@ -329,99 +340,134 @@ public class Domineering : MonoBehaviour
     {
         int nbSoluce = 0;
 
-        int lineY = 0;
-        while (lineY < _heigth - 1)
+        for (int lineY = 0; lineY < _heigth - 1; lineY++)
         {
-            int colX = 0;
-            while (colX < _width)
+            for (int colX = 0; colX < _width; colX++)
             {
                 if (_quadrillageState[lineY][colX] == false && _quadrillageState[lineY + 1][colX] == false)
                 {
                     nbSoluce++;
                 }
-                colX++;
             }
-            lineY++;
         }
         return nbSoluce;
     }
 
-    int MiniMax(int depth, int nbDepth)
+    int Min(int depth, int alpha, int beta)
     {
-        bool iaTurn = nbDepth % 2 == 0 ? true : false;
-
-        if(depth == 0)
+        if (depth == 0 || (NbSoluceIA() == 0 && NbSolucePlayer() == 0))
             return NbSoluceIA() - NbSolucePlayer();
 
-        int finalHeur = 0;
-        if(iaTurn)
+        for (int lineY = 0; lineY < _heigth; lineY++)
         {
-            // Max
-            int heuristic = -100;
-
-            int lineY = 0;
-            while (lineY < _heigth - 1)
+            for (int colX = 0; colX < _width - 1; colX++)
             {
-                int colX = 0;
-                while (colX < _width)
+                if (_quadrillageState[lineY][colX] == false && _quadrillageState[lineY][colX + 1] == false)
                 {
-                    if (_quadrillageState[lineY][colX] == false && _quadrillageState[lineY + 1][colX] == false)
+                    _quadrillageState[lineY][colX] = true;
+                    _quadrillageState[lineY][colX + 1] = true;
+
+                    int tempHeur = Max(depth - 1, alpha, beta);
+
+                    _quadrillageState[lineY][colX] = false;
+                    _quadrillageState[lineY][colX + 1] = false;
+
+                    if (tempHeur < beta)
                     {
-                        _quadrillageState[lineY][colX] = true;
-                        _quadrillageState[lineY + 1][colX] = true;
-
-                        int tempHeur = MiniMax(depth - 1, nbDepth + 1);
-                        if (tempHeur > heuristic)
-                        {
-                            heuristic = tempHeur;
-                            finalHeur = tempHeur;
-
-                            if(nbDepth == 0)
-                            {
-                                _posCursorX = colX;
-                                _posCursorY = lineY;
-                            }
-                        }
-
-                        _quadrillageState[lineY][colX] = false;
-                        _quadrillageState[lineY + 1][colX] = false;
+                        beta = tempHeur;
+                        if (alpha > beta)
+                            return alpha;
                     }
-                    colX++;
                 }
-                lineY++;
             }
         }
-        else
+
+        return beta;
+    }
+
+    int Max(int depth, int alpha, int beta)
+    {
+        if (depth == 0 || (NbSoluceIA() == 0 && NbSolucePlayer() == 0))
+            return NbSoluceIA() - NbSolucePlayer();
+
+        for (int lineY = 0; lineY < _heigth - 1; lineY++)
         {
-            // Min
-            int heuristic = 100;
-
-            int lineY = 0;
-            while (lineY < _heigth)
+            for (int colX = 0; colX < _width; colX++)
             {
-                int colX = 0;
-                while (colX < _width - 1)
+                if (_quadrillageState[lineY][colX] == false && _quadrillageState[lineY + 1][colX] == false)
                 {
-                    if (_quadrillageState[lineY][colX] == false && _quadrillageState[lineY][colX + 1] == false)
+                    _quadrillageState[lineY][colX] = true;
+                    _quadrillageState[lineY + 1][colX] = true;
+
+                    int tempHeur = Min(depth - 1, alpha, beta);
+
+                    _quadrillageState[lineY][colX] = false;
+                    _quadrillageState[lineY + 1][colX] = false;
+
+                    if (tempHeur > alpha)
                     {
-                        _quadrillageState[lineY][colX] = true;
-                        _quadrillageState[lineY][colX + 1] = true;
+                        alpha = tempHeur;
+                        if (alpha > beta)
+                            return beta;
 
-                        int tempHeur = MiniMax(depth - 1, nbDepth + 1);
-                        if (tempHeur < heuristic)
+                        if (depth == _recursivity)
                         {
-                            heuristic = tempHeur;
-                            finalHeur = tempHeur;
+                            _posCursorX = colX;
+                            _posCursorY = lineY;
                         }
-
-                        _quadrillageState[lineY][colX] = false;
-                        _quadrillageState[lineY][colX + 1] = false;
                     }
-                    colX++;
                 }
-                lineY++;
             }
         }
-        return finalHeur;
+
+        return alpha;
+    }
+
+    int NegaMax(int depth, int alpha, int beta)
+    {
+        bool turnIA = ((_recursivity - depth) % 2 == 0);
+        if (depth == 0)
+            return NbSoluceIA() - NbSolucePlayer();
+
+        // Get KillerMove
+        if(_recursivity - depth < _recursivity && _killMoveX[_recursivity - depth] != -5000 && _killMoveY[_recursivity - depth] != -5000)
+        {
+
+        }
+
+        for (int lineY = 0; lineY < _heigth - (turnIA ? 1 : 0); lineY++)
+        {
+            for (int colX = 0; colX < _width - (turnIA ? 0 : 1); colX++)
+            {
+                if (( turnIA && _quadrillageState[lineY][colX] == false && _quadrillageState[lineY + 1][colX] == false) || 
+                    (!turnIA && _quadrillageState[lineY][colX] == false && _quadrillageState[lineY][colX + 1] == false))
+                {
+                    _quadrillageState[lineY][colX] = true;
+                    _quadrillageState[lineY + (turnIA ? 1 : 0)][colX + (turnIA ? 0 : 1)] = true;
+
+                    int tempHeur = -NegaMax(depth - 1, -beta, -alpha);
+
+                    _quadrillageState[lineY][colX] = false;
+                    _quadrillageState[lineY + (turnIA ? 1 : 0)][colX + (turnIA ? 0 : 1)] = false;
+
+                    if (tempHeur > alpha)
+                    {
+                        alpha = tempHeur;
+                        if (alpha >= beta)
+                        {
+                            return beta;
+                        }
+
+                        if (depth == _recursivity)
+                        {
+                            _posCursorX = colX;
+                            _posCursorY = lineY;
+                        }
+                    }
+                }
+            }
+        }
+
+        return alpha;
     }
 }
