@@ -223,7 +223,7 @@ public class Domineering : MonoBehaviour
                 break;
             case Mode.Negamax:
                 Debug.Log("Negamax");
-                NegaMax(_recursivity, -5000, 5000);
+                NegaMax(_recursivity, -NbSolucePlayer() - 50, NbSoluceIA() + 50);
                 break;
 
         }
@@ -235,6 +235,7 @@ public class Domineering : MonoBehaviour
         }
         else
         {
+            Debug.Log(NbSolucePlayer());
             Debug.Log(NbSoluceIA());
             Debug.Log(_posCursorX);
             Debug.Log(_posCursorY);
@@ -426,14 +427,15 @@ public class Domineering : MonoBehaviour
     int NegaMax(int depth, int alpha, int beta)
     {
         bool turnIA = ((_recursivity - depth) % 2 == 0);
-        if (depth == 0)
+        if (depth == 0 || (turnIA && NbSoluceIA() == 0) || (!turnIA && NbSolucePlayer() == 0))
             return NbSoluceIA() - NbSolucePlayer();
 
         // Get KillerMove
+        /*
         if(_recursivity - depth < _recursivity && _killMoveX[_recursivity - depth] != -5000 && _killMoveY[_recursivity - depth] != -5000)
         {
 
-        }
+        }*/
 
         for (int lineY = 0; lineY < _heigth - (turnIA ? 1 : 0); lineY++)
         {
@@ -449,10 +451,11 @@ public class Domineering : MonoBehaviour
 
                     _quadrillageState[lineY][colX] = false;
                     _quadrillageState[lineY + (turnIA ? 1 : 0)][colX + (turnIA ? 0 : 1)] = false;
-
+                    
                     if (tempHeur > alpha)
                     {
                         alpha = tempHeur;
+                        
                         if (alpha >= beta)
                         {
                             return beta;
