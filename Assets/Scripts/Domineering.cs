@@ -10,9 +10,18 @@ public class Domineering : MonoBehaviour
     {
         MinMax,
         MinMaxAlphaBeta,
-        Negamax
+        Negamax,
+        NegamaxTransposition
     };
 
+    struct Transpostion
+    {
+        int[] bestMove;
+        int depth;
+        int score;
+        bool minorant;
+        uint hashcode;
+    }
 
     [SerializeField]
     int _width = 5;
@@ -22,6 +31,9 @@ public class Domineering : MonoBehaviour
 
     [SerializeField]
     Material[] _materials;
+
+    [SerializeField]
+    bool _iaStart = false;
 
     [SerializeField]
     Mode _mode = Mode.MinMax;
@@ -43,6 +55,11 @@ public class Domineering : MonoBehaviour
     private int _posCursorY = 0;
 
     private int[][] _killMove;
+
+    private uint _stateZobrist = 0;
+    private uint[] _stateBoard;
+
+    List<Transpostion> _tableTransposition;
 
     // Use this for initialization
     void Start ()
@@ -74,7 +91,14 @@ public class Domineering : MonoBehaviour
         for (int i = 0; i < _recursivity; i++)
             _killMove[i] = new int[2] { -1, -1 };
 
-        ChangeToPlayer();
+        _stateBoard = new uint[_recursivity];
+        for (int i = 0; i < _recursivity; i++)
+            _stateBoard[i] = (uint) Random.Range(0, sizeof(uint));
+
+        if (_iaStart)
+            ChangeToIA();
+        else
+            ChangeToPlayer();
     }
 
     // Update is called once per frame
@@ -226,6 +250,9 @@ public class Domineering : MonoBehaviour
             case Mode.Negamax:
                 NegaMax(_recursivity, -NbSolucePlayer() - 50, NbSoluceIA() + 50);
                 break;
+            case Mode.NegamaxTransposition:
+                NegaMaxTranspostion(_recursivity, -NbSolucePlayer() - 50, NbSoluceIA() + 50);
+                break;
 
         }
 
@@ -267,6 +294,8 @@ public class Domineering : MonoBehaviour
 
         _quadrillageState[y][x] = true;
         _quadrillageState[y][x + 1] = true;
+
+        _stateZobrist = _stateZobrist ^ _stateBoard[x + (y * _width)] ^ _stateBoard[x + 1 + (y * _width)];
     }
 
     void SetIAPick(int x, int y)
@@ -276,6 +305,8 @@ public class Domineering : MonoBehaviour
 
         _quadrillageState[y][x] = true;
         _quadrillageState[y + 1][x] = true;
+
+        _stateZobrist = _stateZobrist ^ _stateBoard[x + (y * _width)] ^ _stateBoard[x + ((y + 1) * _width)];
     }
 
 
@@ -449,7 +480,7 @@ public class Domineering : MonoBehaviour
         #region Null Move
         if (_nullMove && depth - 3 > 0)
         {
-            int[] worstMove = getWorstMovsAvalaible(turnIA);
+            int[] worstMove = getWorstMoveAvalaible(turnIA);
 
             if(worstMove[0] != -1 && worstMove[1] != -1)
             {
@@ -482,6 +513,8 @@ public class Domineering : MonoBehaviour
             _quadrillageState[lineY + (turnIA ? 1 : 0)][colX + (turnIA ? 0 : 1)] = true;
 
             int tempHeur = -NegaMax(depth - 1, -beta, -alpha);
+
+
 
             _quadrillageState[lineY][colX] = false;
             _quadrillageState[lineY + (turnIA ? 1 : 0)][colX + (turnIA ? 0 : 1)] = false;
@@ -529,7 +562,7 @@ public class Domineering : MonoBehaviour
         return moves;
     }
 
-    int[] getWorstMovsAvalaible(bool turnIA)
+    int[] getWorstMoveAvalaible(bool turnIA)
     {
         int[] moves = new int[2] { -1, -1 };
 
@@ -560,4 +593,53 @@ public class Domineering : MonoBehaviour
 
         return moves;
     }
+
+
+    int NegaMaxTranspostion(int depth, int alpha, int beta)
+    {
+        bool turnIA = ((_recursivity - depth) % 2 == 0);
+        if (depth == 0 || (turnIA && NbSoluceIA() == 0) || (!turnIA && NbSolucePlayer() == 0))
+            return NbSoluceIA() - NbSolucePlayer();
+        
+        List<int[]> moves = getMovesAvalaible(turnIA);
+        
+        for (int i = 0; i < moves.Count; i++)
+        {
+            int lineY = moves[i][0];
+            int colX = moves[i][1];
+
+            _quadrillageState[lineY][colX] = true;
+            _quadrillageState[lineY + (turnIA ? 1 : 0)][colX + (turnIA ? 0 : 1)] = true;
+
+            int tempHeur = -NegaMaxTranspostion(depth - 1, -beta, -alpha);
+
+
+
+            _quadrillageState[lineY][colX] = false;
+            _quadrillageState[lineY + (turnIA ? 1 : 0)][colX + (turnIA ? 0 : 1)] = false;
+
+            if (tempHeur > alpha)
+            {
+                alpha = tempHeur;
+
+                if (alpha >= beta)
+                {
+                    if (_killerMove)
+                        _killMove[_recursivity - depth] = moves[i];
+
+                    return beta;
+                }
+
+                if (depth == _recursivity)
+                {
+                    _posCursorX = colX;
+                    _posCursorY = lineY;
+                }
+            }
+        }
+
+        return alpha;
+    }
+
+
 }
