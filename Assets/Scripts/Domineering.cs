@@ -12,7 +12,8 @@ public class Domineering : MonoBehaviour
         MinMaxAlphaBeta,
         Negamax
     };
-    
+
+
     [SerializeField]
     int _width = 5;
 
@@ -24,10 +25,16 @@ public class Domineering : MonoBehaviour
 
     [SerializeField]
     Mode _mode = Mode.MinMax;
-    
+
+    [SerializeField]
+    bool _killerMove = false;
+
+    [SerializeField]
+    bool _nullMove = false;
+
     [SerializeField]
     int _recursivity = 5;
-
+    
     private GameObject[][] _quadrillage;
     private bool _playerTurn = true;
     private bool[][] _quadrillageState;
@@ -35,8 +42,7 @@ public class Domineering : MonoBehaviour
     private int _posCursorX = 0;
     private int _posCursorY = 0;
 
-    private int[] _killMoveX;
-    private int[] _killMoveY;
+    private int[][] _killMove;
 
     // Use this for initialization
     void Start ()
@@ -64,13 +70,9 @@ public class Domineering : MonoBehaviour
             posY--;
         }
 
-        _killMoveX = new int[_recursivity];
+        _killMove = new int[_recursivity][];
         for (int i = 0; i < _recursivity; i++)
-            _killMoveX[i] = -5000;
-
-        _killMoveY = new int[_recursivity];
-        for (int i = 0; i < _recursivity; i++)
-            _killMoveY[i] = -5000;
+            _killMove[i] = new int[2] { -1, -1 };
 
         ChangeToPlayer();
     }
@@ -222,7 +224,6 @@ public class Domineering : MonoBehaviour
                 Max(_recursivity, -5000, 5000);
                 break;
             case Mode.Negamax:
-                Debug.Log("Negamax");
                 NegaMax(_recursivity, -NbSolucePlayer() - 50, NbSoluceIA() + 50);
                 break;
 
@@ -237,8 +238,6 @@ public class Domineering : MonoBehaviour
         {
             Debug.Log(NbSolucePlayer());
             Debug.Log(NbSoluceIA());
-            Debug.Log(_posCursorX);
-            Debug.Log(_posCursorY);
             Debug.Log("IA Game Over");
         }
     }
@@ -431,46 +430,134 @@ public class Domineering : MonoBehaviour
             return NbSoluceIA() - NbSolucePlayer();
 
         // Get KillerMove
-        /*
-        if(_recursivity - depth < _recursivity && _killMoveX[_recursivity - depth] != -5000 && _killMoveY[_recursivity - depth] != -5000)
-        {
+        List<int[]> moves = getMovesAvalaible(turnIA);
 
-        }*/
-
-        for (int lineY = 0; lineY < _heigth - (turnIA ? 1 : 0); lineY++)
+        #region Kill Move
+        if (_killerMove && _killMove[_recursivity - depth][0] != -1 && _killMove[_recursivity - depth][1] != -1)
         {
-            for (int colX = 0; colX < _width - (turnIA ? 0 : 1); colX++)
+            if ((turnIA  && _quadrillageState[_killMove[_recursivity - depth][0]][_killMove[_recursivity - depth][1]] == false && _quadrillageState[_killMove[_recursivity - depth][0] + 1][_killMove[_recursivity - depth][1]] == false) ||
+                (!turnIA && _quadrillageState[_killMove[_recursivity - depth][0]][_killMove[_recursivity - depth][1]] == false && _quadrillageState[_killMove[_recursivity - depth][0]][_killMove[_recursivity - depth][1] + 1] == false))
             {
-                if (( turnIA && _quadrillageState[lineY][colX] == false && _quadrillageState[lineY + 1][colX] == false) || 
-                    (!turnIA && _quadrillageState[lineY][colX] == false && _quadrillageState[lineY][colX + 1] == false))
+                int[] kill = new int[2] { _killMove[_recursivity - depth][0], _killMove[_recursivity - depth][1] };
+                moves.Insert(0, kill);
+                _killMove[_recursivity - depth][0] = -1;
+                _killMove[_recursivity - depth][1] = -1;
+            }
+        }
+        #endregion
+
+        #region Null Move
+        if (_nullMove && depth - 3 > 0)
+        {
+            int[] worstMove = getWorstMovsAvalaible(turnIA);
+
+            if(worstMove[0] != -1 && worstMove[1] != -1)
+            {
+                int lineY = worstMove[0];
+                int colX  = worstMove[1];
+
+                _quadrillageState[lineY][colX] = true;
+                _quadrillageState[lineY + (turnIA ? 1 : 0)][colX + (turnIA ? 0 : 1)] = true;
+
+                int tempHeur = -NegaMax(depth - 3, -beta, -alpha);
+
+                _quadrillageState[lineY][colX] = false;
+                _quadrillageState[lineY + (turnIA ? 1 : 0)][colX + (turnIA ? 0 : 1)] = false;
+                
+                if (alpha >= beta)
                 {
-                    _quadrillageState[lineY][colX] = true;
-                    _quadrillageState[lineY + (turnIA ? 1 : 0)][colX + (turnIA ? 0 : 1)] = true;
+                    return beta;
+                }
+            }
+        }
+        #endregion
 
-                    int tempHeur = -NegaMax(depth - 1, -beta, -alpha);
 
-                    _quadrillageState[lineY][colX] = false;
-                    _quadrillageState[lineY + (turnIA ? 1 : 0)][colX + (turnIA ? 0 : 1)] = false;
-                    
-                    if (tempHeur > alpha)
-                    {
-                        alpha = tempHeur;
-                        
-                        if (alpha >= beta)
-                        {
-                            return beta;
-                        }
+        for (int i = 0; i < moves.Count; i++)
+        {
+            int lineY = moves[i][0];
+            int colX  = moves[i][1];
 
-                        if (depth == _recursivity)
-                        {
-                            _posCursorX = colX;
-                            _posCursorY = lineY;
-                        }
-                    }
+            _quadrillageState[lineY][colX] = true;
+            _quadrillageState[lineY + (turnIA ? 1 : 0)][colX + (turnIA ? 0 : 1)] = true;
+
+            int tempHeur = -NegaMax(depth - 1, -beta, -alpha);
+
+            _quadrillageState[lineY][colX] = false;
+            _quadrillageState[lineY + (turnIA ? 1 : 0)][colX + (turnIA ? 0 : 1)] = false;
+
+            if (tempHeur > alpha)
+            {
+                alpha = tempHeur;
+
+                if (alpha >= beta)
+                {
+                    if(_killerMove)
+                        _killMove[_recursivity - depth] = moves[i];
+
+                    return beta;
+                }
+
+                if (depth == _recursivity)
+                {
+                    _posCursorX = colX;
+                    _posCursorY = lineY;
                 }
             }
         }
 
         return alpha;
+    }
+
+    List<int[]> getMovesAvalaible(bool turnIA)
+    {
+        List<int[]> moves = new List<int[]>();
+
+        for (int lineY = 0; lineY < _heigth - (turnIA ? 1 : 0); lineY++)
+        {
+            for (int colX = 0; colX < _width - (turnIA ? 0 : 1); colX++)
+            {
+                if ((turnIA && _quadrillageState[lineY][colX] == false && _quadrillageState[lineY + 1][colX] == false) ||
+                    (!turnIA && _quadrillageState[lineY][colX] == false && _quadrillageState[lineY][colX + 1] == false))
+                {
+                    int[] pos = new int[2] { lineY, colX };
+                    moves.Add(pos);
+                }
+            }
+        }
+
+        return moves;
+    }
+
+    int[] getWorstMovsAvalaible(bool turnIA)
+    {
+        int[] moves = new int[2] { -1, -1 };
+
+        int worstCoup = turnIA ? 500 : -500;
+        for (int lineY = 0; lineY < _heigth - (turnIA ? 1 : 0); lineY++)
+        {
+            for (int colX = 0; colX < _width - (turnIA ? 0 : 1); colX++)
+            {
+                if ((turnIA && _quadrillageState[lineY][colX] == false && _quadrillageState[lineY + 1][colX] == false) ||
+                    (!turnIA && _quadrillageState[lineY][colX] == false && _quadrillageState[lineY][colX + 1] == false))
+                {
+                    _quadrillageState[lineY][colX] = true;
+                    _quadrillageState[lineY + (turnIA ? 1 : 0)][colX + (turnIA ? 0 : 1)] = true;
+                    
+                    int soluce = turnIA ? NbSoluceIA() : NbSolucePlayer();
+                    if ((turnIA && worstCoup > soluce) || (!turnIA && worstCoup < soluce))
+                    {
+                        worstCoup = soluce;
+                        moves[0] = lineY;
+                        moves[1] = colX;
+                    }
+
+                    _quadrillageState[lineY][colX] = false;
+                    _quadrillageState[lineY + (turnIA ? 1 : 0)][colX + (turnIA ? 0 : 1)] = false;
+                }
+            }
+        }
+
+        return moves;
     }
 }
